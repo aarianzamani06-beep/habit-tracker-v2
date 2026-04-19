@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Tracker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #1a1a1a; padding: 20px; max-width: 500px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.date { font-size: 17px; font-weight: 600; }
+.week { font-size: 12px; color: #888; background: #f5f5f5; padding: 4px 10px; border-radius: 8px; }
+.scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.score-box { background: #f9f9f9; border-radius: 10px; padding: 12px; text-align: center; }
+.score-label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.score-val { font-size: 22px; font-weight: 700; color: #1a1a1a; }
+.score-val.green { color: #1D9E75; }
+.bar-bg { height: 5px; background: #f0f0f0; border-radius: 99px; overflow: hidden; margin-bottom: 20px; }
+.bar-fill { height: 100%; background: #1D9E75; border-radius: 99px; transition: width 0.3s; }
+.habits { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.habit { display: flex; align-items: center; gap: 12px; padding: 13px 16px; background: #fff; border: 1px solid #eee; border-radius: 10px; cursor: pointer; user-select: none; transition: all 0.15s; }
+.habit:hover { background: #fafafa; }
+.habit.done { border-color: #1D9E75; background: #f0faf6; }
+.circle { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #ddd; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
+.habit.done .circle { background: #1D9E75; border-color: #1D9E75; }
+.tick { display: none; }
+.habit.done .tick { display: block; }
+.habit-name { font-size: 15px; }
+.habit.done .habit-name { color: #0F6E56; }
+.reflect { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+.reflect-title { font-size: 10px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px; }
+.q { font-size: 13px; color: #888; margin-bottom: 5px; margin-top: 12px; }
+.q:first-of-type { margin-top: 0; }
+.sep { height: 1px; background: #f0f0f0; margin: 8px 0; }
+textarea { width: 100%; border: none; background: transparent; font-size: 14px; color: #1a1a1a; font-family: inherit; resize: none; outline: none; line-height: 1.6; }
+.archive-wrap { border-top: 1px solid #f0f0f0; padding-top: 16px; }
+.archive-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.archive-title { font-size: 10px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.07em; }
+.archive-btn { font-size: 13px; color: #aaa; background: none; border: none; cursor: pointer; font-family: inherit; }
+.archive-list { display: flex; flex-direction: column; gap: 6px; }
+.archive-row { display: flex; justify-content: space-between; padding: 9px 12px; background: #f9f9f9; border-radius: 8px; font-size: 13px; }
+.arc-date { color: #888; }
+.arc-score { font-weight: 600; }
+.arc-score.perfect { color: #1D9E75; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="date" id="date"></div>
+  <div class="week" id="week"></div>
+</div>
+<div class="scores">
+  <div class="score-box"><div class="score-label">Today</div><div class="score-val green" id="today-score">0/8</div></div>
+  <div class="score-box"><div class="score-label">Week avg</div><div class="score-val" id="week-score">—</div></div>
+  <div class="score-box"><div class="score-label">Streak</div><div class="score-val" id="streak">—</div></div>
+</div>
+<div class="bar-bg"><div class="bar-fill" id="bar" style="width:0%"></div></div>
+<div class="habits" id="habits"></div>
+<div class="reflect">
+  <div class="reflect-title">Daily reflection</div>
+  <div class="q">What did I get done today that mattered?</div>
+  <textarea id="r1" rows="2" placeholder="Write here..."></textarea>
+  <div class="sep"></div>
+  <div class="q">What did I let slip and why?</div>
+  <textarea id="r2" rows="2" placeholder="Write here..."></textarea>
+  <div class="sep"></div>
+  <div class="q">One thing I will do differently tomorrow?</div>
+  <textarea id="r3" rows="2" placeholder="Write here..."></textarea>
+</div>
+<div class="archive-wrap">
+  <div class="archive-head">
+    <div class="archive-title">Archive</div>
+    <button class="archive-btn" id="arc-btn" onclick="toggleArchive()">Show</button>
+  </div>
+  <div class="archive-list" id="arc-list" style="display:none"></div>
+</div>
+<script>
+var HABITS=['Morning routine','Supplements & nutrition','Daily activity','3.5L water','One business action','Prayer & gratitude','Reading','Evening routine'];
+var checked=load('ht_checked')||[false,false,false,false,false,false,false,false];
+var archive=load('ht_archive')||[];
+var arcVisible=false;
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function load(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
+function checkNewDay(){
+  var last=load('ht_today'),today=todayStr();
+  if(last&&last!==today){
+    var r=load('ht_reflect')||{};
+    archive.unshift({date:last,score:checked.filter(Boolean).length,r1:r.r1||'',r2:r.r2||'',r3:r.r3||''});
+    save('ht_archive',archive);
+    checked=[false,false,false,false,false,false,false,false];
+    save('ht_checked',checked);
+    save('ht_reflect',{});
+    ['r1','r2','r3'].forEach(function(id){document.getElementById(id).value='';});
+  }
+  save('ht_today',today);
+}
+function getWeekNum(){var n=new Date(),s=new Date(n.getFullYear(),0,1);return Math.ceil(((n-s)/86400000+s.getDay()+1)/7);}
+function updateScore(){
+  var count=checked.filter(Boolean).length;
+  document.getElementById('today-score').textContent=count+'/8';
+  document.getElementById('bar').style.width=Math.round(count/8*100)+'%';
+  if(archive.length){
+    var r=archive.slice(0,7),avg=(r.reduce(function(a,b){return a+b.score;},0)/r.length).toFixed(1);
+    document.getElementById('week-score').textContent=avg+'/8';
+    var streak=0;for(var i=0;i<archive.length;i++){if(archive[i].score===8)streak++;else break;}
+    document.getElementById('streak').textContent=streak+(streak===1?' day':' days');
+  }
+}
+function renderHabits(){
+  var list=document.getElementById('habits');list.innerHTML='';
+  HABITS.forEach(function(h,i){
+    var row=document.createElement('div');
+    row.className='habit'+(checked[i]?' done':'');
+    row.innerHTML='<div class="circle"><svg class="tick" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="habit-name">'+h+'</div>';
+    (function(idx){row.onclick=function(){checked[idx]=!checked[idx];save('ht_checked',checked);renderHabits();updateScore();};})(i);
+    list.appendChild(row);
+  });
+}
+function renderArchive(){
+  var list=document.getElementById('arc-list');list.innerHTML='';
+  if(!archive.length){list.innerHTML='<div style="font-size:13px;color:#bbb">No previous days yet</div>';return;}
+  archive.forEach(function(d){
+    var row=document.createElement('div');row.className='archive-row';
+    var dt=new Date(d.date+'T12:00:00').toLocaleDateString('en-AU',{weekday:'short',month:'short',day:'numeric'});
+    row.innerHTML='<span class="arc-date">'+dt+'</span><span class="arc-score'+(d.score===8?' perfect':'')+'">'+ d.score+'/8</span>';
+    list.appendChild(row);
+  });
+}
+function toggleArchive(){
+  arcVisible=!arcVisible;
+  var l=document.getElementById('arc-list');
+  l.style.display=arcVisible?'flex':'none';
+  l.style.flexDirection='column';
+  document.getElementById('arc-btn').textContent=arcVisible?'Hide':'Show';
+}
+var saved=load('ht_reflect')||{};
+['r1','r2','r3'].forEach(function(id){
+  document.getElementById(id).value=saved[id]||'';
+  document.getElementById(id).oninput=function(){var r=load('ht_reflect')||{};r[id]=this.value;save('ht_reflect',r);};
+});
+document.getElementById('date').textContent=new Date().toLocaleDateString('en-AU',{weekday:'long',month:'long',day:'numeric'});
+document.getElementById('week').textContent='Week '+getWeekNum()+' of 52';
+checkNewDay();renderHabits();updateScore();renderArchive();
+</script>
+</body>
+</html>
